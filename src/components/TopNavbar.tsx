@@ -10,20 +10,20 @@ type Eip1193Provider = {
   }) => Promise<unknown>;
 };
 
-const STABLE_CHAIN_ID_HEX = "0x3dc";
+const ARC_CHAIN_ID_HEX = "0x13a2";
 const AUTH_TOKEN_KEY = "voxelverseAuthToken";
 const WALLET_ADDRESS_KEY = "voxelverseWalletAddress";
 
-const STABLE_NETWORK_PARAMS = {
-  chainId: STABLE_CHAIN_ID_HEX,
-  chainName: "Stable Mainnet",
+const ARC_NETWORK_PARAMS = {
+  chainId: ARC_CHAIN_ID_HEX,
+  chainName: "Arc",
   nativeCurrency: {
-    name: "USDT0",
-    symbol: "USDT0",
+    name: "USDC",
+    symbol: "USDC",
     decimals: 18,
   },
-  rpcUrls: ["https://rpc.stable.xyz"],
-  blockExplorerUrls: ["https://stablescan.xyz"],
+  rpcUrls: ["https://rpc.mainnet.arc.io"],
+  blockExplorerUrls: ["https://explorer.arc.io"],
 };
 
 function getProvider(): Eip1193Provider | null {
@@ -37,7 +37,7 @@ function shortAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-async function connectStableAndAuthenticate() {
+async function connectArcAndAuthenticate() {
   const provider = getProvider();
   if (!provider)
     throw new Error("No wallet found. Install MetaMask or another EVM wallet.");
@@ -45,16 +45,27 @@ async function connectStableAndAuthenticate() {
   const currentChainUnknown = await provider.request({ method: "eth_chainId" });
   const currentChain =
     typeof currentChainUnknown === "string" ? currentChainUnknown : null;
-  if (currentChain !== STABLE_CHAIN_ID_HEX) {
+  if (currentChain !== ARC_CHAIN_ID_HEX) {
     try {
       await provider.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: STABLE_CHAIN_ID_HEX }],
+        params: [{ chainId: ARC_CHAIN_ID_HEX }],
       });
-    } catch {
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? Number((error as { code?: unknown }).code)
+          : null;
+      if (code !== 4902) {
+        throw error;
+      }
       await provider.request({
         method: "wallet_addEthereumChain",
-        params: [STABLE_NETWORK_PARAMS],
+        params: [ARC_NETWORK_PARAMS],
+      });
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: ARC_CHAIN_ID_HEX }],
       });
     }
   }
@@ -143,7 +154,7 @@ export function TopNavbar({ floating = false }: { floating?: boolean }) {
   const handleConnect = async () => {
     setIsConnecting(true);
     try {
-      const address = await connectStableAndAuthenticate();
+      const address = await connectArcAndAuthenticate();
       setWalletAddress(address);
     } catch (error) {
       const rawMessage =
@@ -172,7 +183,7 @@ export function TopNavbar({ floating = false }: { floating?: boolean }) {
               to="/"
               className="text-xl font-serif tracking-[0.18em] text-white sm:text-2xl"
             >
-              STABLEREALMS
+              ARCREALMS
             </Link>
 
             <nav className="hidden items-center gap-6 text-sm font-semibold text-white/95 md:flex">

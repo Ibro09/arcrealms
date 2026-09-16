@@ -31,7 +31,7 @@ export function HowToPlayPage() {
             <div className="flex items-center gap-4 md:gap-8">
               <h1 className="text-xl font-serif tracking-[0.18em] text-white sm:text-2xl">
                 <Link to="/" className="">
-                  STABLEREALMS
+                  ARCREALMS
                 </Link>
               </h1>
 
@@ -133,7 +133,7 @@ export function HowToPlayPage() {
               PLAYER GUIDE
             </p>
             <h1 className="mt-1 text-3xl font-black tracking-[0.14em] text-white sm:text-5xl">
-              HOW TO PLAY STABLEREALMS
+              HOW TO PLAY ARCREALMS
             </h1>
             <p className="mt-4 max-w-3xl text-base font-semibold text-white/90 sm:text-2xl">
               A practical player guide from first spawn to combat mastery,

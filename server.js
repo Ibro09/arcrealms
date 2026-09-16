@@ -1,4 +1,5 @@
 import cors from "cors";
+import crypto from "node:crypto";
 import dotenv from "dotenv";
 import express from "express";
 import jwt from "jsonwebtoken";
@@ -12,8 +13,8 @@ function getRuntimeConfig() {
   const {
     MONGODB_URI,
     JWT_SECRET,
-    STABLE_RPC_URL = "https://rpc.stable.xyz",
-    STABLE_NATIVE_DECIMALS = "18",
+    ARC_RPC_URL = "https://rpc.mainnet.arc.io",
+    ARC_NATIVE_DECIMALS = "18",
     PAYOUT_WALLET_PRIVATE_KEY,
     PORT = "4000",
   } = process.env;
@@ -28,8 +29,8 @@ function getRuntimeConfig() {
   return {
     MONGODB_URI,
     JWT_SECRET,
-    STABLE_RPC_URL,
-    STABLE_NATIVE_DECIMALS,
+    ARC_RPC_URL,
+    ARC_NATIVE_DECIMALS,
     PAYOUT_WALLET_PRIVATE_KEY,
     PORT,
   };
@@ -51,7 +52,7 @@ function getModels() {
     {
       walletAddress: { type: String, required: true, unique: true, index: true },
       exp: { type: Number, default: 0, min: 0 },
-      totalUsdt0Withdrawn: { type: String, default: "0" },
+      totalUsdcWithdrawn: { type: String, default: "0" },
     },
     { timestamps: true }
   );
@@ -68,7 +69,7 @@ function getModels() {
     {
       walletAddress: { type: String, required: true, index: true },
       expRedeemed: { type: Number, required: true, min: 0 },
-      usdt0Amount: { type: String, required: true },
+      usdcAmount: { type: String, required: true },
       txHash: { type: String, required: true },
     },
     { timestamps: true }
@@ -119,7 +120,7 @@ function makeAuthMiddleware(jwtSecret) {
 }
 
 function makePayoutSender(config) {
-  return async function sendStablePayout(toAddress, expToRedeem) {
+  return async function sendArcPayout(toAddress, expToRedeem) {
     if (!config.PAYOUT_WALLET_PRIVATE_KEY) {
       throw new Error("PAYOUT_WALLET_PRIVATE_KEY is not configured.");
     }
@@ -140,12 +141,12 @@ function makePayoutSender(config) {
       );
     }
 
-    const decimals = Number(config.STABLE_NATIVE_DECIMALS);
+    const decimals = Number(config.ARC_NATIVE_DECIMALS);
     if (!Number.isInteger(decimals) || decimals < 0) {
-      throw new Error("STABLE_NATIVE_DECIMALS must be a non-negative integer.");
+      throw new Error("ARC_NATIVE_DECIMALS must be a non-negative integer.");
     }
 
-    const provider = new ethers.JsonRpcProvider(config.STABLE_RPC_URL);
+    const provider = new ethers.JsonRpcProvider(config.ARC_RPC_URL);
     const wallet = new ethers.Wallet(privateKeyNormalized, provider);
     const units = 10n ** BigInt(decimals);
     const payoutInBaseUnits = (BigInt(expToRedeem) * units) / 10000n;
@@ -158,7 +159,7 @@ function makePayoutSender(config) {
 
     return {
       txHash: tx.hash,
-      usdt0Amount: ethers.formatUnits(payoutInBaseUnits, decimals),
+      usdcAmount: ethers.formatUnits(payoutInBaseUnits, decimals),
     };
   };
 }
@@ -168,7 +169,7 @@ export async function createApiApp() {
   await ensureMongoConnected(config.MONGODB_URI);
   const { Player, AuthNonce, Withdrawal } = getModels();
   const authMiddleware = makeAuthMiddleware(config.JWT_SECRET);
-  const sendStablePayout = makePayoutSender(config);
+  const sendArcPayout = makePayoutSender(config);
 
   const app = express();
   app.use(cors({ origin: true, credentials: true }));
@@ -229,7 +230,7 @@ export async function createApiApp() {
 
       const player = await Player.findOneAndUpdate(
         { walletAddress: normalized },
-        { $setOnInsert: { walletAddress: normalized, exp: 0, totalUsdt0Withdrawn: "0" } },
+        { $setOnInsert: { walletAddress: normalized, exp: 0, totalUsdcWithdrawn: "0" } },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
 
@@ -244,7 +245,7 @@ export async function createApiApp() {
         player: {
           walletAddress: player.walletAddress,
           exp: player.exp,
-          totalUsdt0Withdrawn: player.totalUsdt0Withdrawn,
+          totalUsdcWithdrawn: player.totalUsdcWithdrawn,
         },
       });
     } catch {
@@ -261,7 +262,7 @@ export async function createApiApp() {
     return res.json({
       walletAddress: player.walletAddress,
       exp: player.exp,
-      totalUsdt0Withdrawn: player.totalUsdt0Withdrawn,
+      totalUsdcWithdrawn: player.totalUsdcWithdrawn,
     });
   });
 
@@ -285,7 +286,7 @@ export async function createApiApp() {
     return res.json({
       walletAddress: player.walletAddress,
       exp: player.exp,
-      totalUsdt0Withdrawn: player.totalUsdt0Withdrawn,
+      totalUsdcWithdrawn: player.totalUsdcWithdrawn,
     });
   });
 
@@ -306,25 +307,25 @@ export async function createApiApp() {
     }
 
     try {
-      const payout = await sendStablePayout(player.walletAddress, expToRedeem);
+      const payout = await sendArcPayout(player.walletAddress, expToRedeem);
       player.exp -= expToRedeem;
-      player.totalUsdt0Withdrawn = (
-        Number(player.totalUsdt0Withdrawn) + Number(payout.usdt0Amount)
+      player.totalUsdcWithdrawn = (
+        Number(player.totalUsdcWithdrawn) + Number(payout.usdcAmount)
       ).toString();
       await player.save();
 
       await Withdrawal.create({
         walletAddress: player.walletAddress,
         expRedeemed: expToRedeem,
-        usdt0Amount: payout.usdt0Amount,
+        usdcAmount: payout.usdcAmount,
         txHash: payout.txHash,
       });
 
       return res.json({
         txHash: payout.txHash,
-        usdt0Sent: payout.usdt0Amount,
+        usdcSent: payout.usdcAmount,
         expRemaining: player.exp,
-        totalUsdt0Withdrawn: player.totalUsdt0Withdrawn,
+        totalUsdcWithdrawn: player.totalUsdcWithdrawn,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Payout failed.";

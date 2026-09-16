@@ -7,22 +7,22 @@ type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>;
 };
 
-const STABLE_CHAIN_ID_DEC = 988;
-const STABLE_CHAIN_ID_HEX = "0x3dc";
+const ARC_CHAIN_ID_DEC = 5042;
+const ARC_CHAIN_ID_HEX = "0x13a2";
 const AUTH_TOKEN_KEY = "voxelverseAuthToken";
 const WALLET_ADDRESS_KEY = "voxelverseWalletAddress";
 const CONNECT_STEP_TIMEOUT_MS = 25000;
 
-const STABLE_NETWORK_PARAMS = {
-  chainId: STABLE_CHAIN_ID_HEX,
-  chainName: "Stable Mainnet",
+const ARC_NETWORK_PARAMS = {
+  chainId: ARC_CHAIN_ID_HEX,
+  chainName: "Arc",
   nativeCurrency: {
-    name: "USDT0",
-    symbol: "USDT0",
+    name: "USDC",
+    symbol: "USDC",
     decimals: 18,
   },
-  rpcUrls: ["https://rpc.stable.xyz"],
-  blockExplorerUrls: ["https://stablescan.xyz"],
+  rpcUrls: ["https://rpc.mainnet.arc.io"],
+  blockExplorerUrls: ["https://explorer.arc.io"],
 };
 
 function getProvider(): Eip1193Provider | null {
@@ -62,12 +62,12 @@ export function WalletPage() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isOnStable = useMemo(() => {
+  const isOnArc = useMemo(() => {
     if (!chainIdHex) return false;
-    return parseInt(chainIdHex, 16) === STABLE_CHAIN_ID_DEC;
+    return parseInt(chainIdHex, 16) === ARC_CHAIN_ID_DEC;
   }, [chainIdHex]);
 
-  const withdrawPreviewUsdt0 = useMemo(() => {
+  const withdrawPreviewUsdc = useMemo(() => {
     const value = Number(withdrawExpInput);
     if (!Number.isFinite(value) || value <= 0) return "0.0";
     return (value / 10000).toFixed(4);
@@ -106,7 +106,7 @@ export function WalletPage() {
         const data = await readJsonSafe<{
           walletAddress: string;
           exp: number;
-          totalUsdt0Withdrawn: string;
+          totalUsdcWithdrawn: string;
         }>(response);
         if (!response.ok) {
           if (response.status === 401) {
@@ -122,7 +122,7 @@ export function WalletPage() {
         }
         setWalletAddress(data.walletAddress);
         setPlayerExp(data.exp);
-        setTotalWithdrawn(data.totalUsdt0Withdrawn ?? "0");
+        setTotalWithdrawn(data.totalUsdcWithdrawn ?? "0");
       } catch {
         setErrorMessage("Could not load wallet profile from server.");
       }
@@ -131,7 +131,7 @@ export function WalletPage() {
     void loadProfile();
   }, [authToken]);
 
-  const connectStableWallet = async () => {
+  const connectArcWallet = async () => {
     const provider = getProvider();
     if (!provider) {
       setErrorMessage("No wallet found. Install MetaMask or another EVM wallet.");
@@ -149,24 +149,39 @@ export function WalletPage() {
       );
       const currentChain = typeof currentChainUnknown === "string" ? currentChainUnknown : null;
 
-      if (currentChain !== STABLE_CHAIN_ID_HEX) {
+      if (currentChain !== ARC_CHAIN_ID_HEX) {
         try {
           await withTimeout(
             provider.request({
               method: "wallet_switchEthereumChain",
-              params: [{ chainId: STABLE_CHAIN_ID_HEX }],
+              params: [{ chainId: ARC_CHAIN_ID_HEX }],
             }),
             CONNECT_STEP_TIMEOUT_MS,
-            "Timed out switching to Stable Mainnet. Approve the network prompt in your wallet."
+            "Timed out switching to Arc. Approve the network prompt in your wallet."
           );
-        } catch {
+        } catch (error) {
+          const code =
+            error && typeof error === "object" && "code" in error
+              ? Number((error as { code?: unknown }).code)
+              : null;
+          if (code !== 4902) {
+            throw error;
+          }
           await withTimeout(
             provider.request({
               method: "wallet_addEthereumChain",
-              params: [STABLE_NETWORK_PARAMS],
+              params: [ARC_NETWORK_PARAMS],
             }),
             CONNECT_STEP_TIMEOUT_MS,
-            "Timed out adding Stable Mainnet. Approve the network prompt in your wallet."
+            "Timed out adding Arc. Approve the network prompt in your wallet."
+          );
+          await withTimeout(
+            provider.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: ARC_CHAIN_ID_HEX }],
+            }),
+            CONNECT_STEP_TIMEOUT_MS,
+            "Timed out switching to Arc after adding it."
           );
         }
       }
@@ -251,7 +266,7 @@ export function WalletPage() {
       const verifyPayload = await readJsonSafe<{
         error?: string;
         token?: string;
-        player?: { walletAddress?: string; exp?: number; totalUsdt0Withdrawn?: string };
+        player?: { walletAddress?: string; exp?: number; totalUsdcWithdrawn?: string };
       }>(verifyResponse);
       if (!verifyResponse.ok) {
         throw new Error(verifyPayload.error ?? "Wallet authentication failed.");
@@ -265,10 +280,10 @@ export function WalletPage() {
       setAuthToken(verifyPayload.token);
       setWalletAddress(verifyPayload.player.walletAddress);
       setPlayerExp(verifyPayload.player.exp ?? 0);
-      setTotalWithdrawn(verifyPayload.player.totalUsdt0Withdrawn ?? "0");
+      setTotalWithdrawn(verifyPayload.player.totalUsdcWithdrawn ?? "0");
     } catch (err) {
       const rawMessage =
-        err instanceof Error ? err.message : "Could not connect wallet to Stable Mainnet.";
+        err instanceof Error ? err.message : "Could not connect wallet to Arc.";
       const message =
         rawMessage.toLowerCase().includes("failed to fetch")
           ? "Backend API is unreachable. Check your production function/env configuration."
@@ -308,9 +323,9 @@ export function WalletPage() {
       const payload = await readJsonSafe<{
         error?: string;
         txHash?: string;
-        usdt0Sent?: string;
+        usdcSent?: string;
         expRemaining?: number;
-        totalUsdt0Withdrawn?: string;
+        totalUsdcWithdrawn?: string;
       }>(response);
 
       if (!response.ok) {
@@ -318,9 +333,9 @@ export function WalletPage() {
       }
 
       setPlayerExp(payload.expRemaining ?? playerExp);
-      setTotalWithdrawn(payload.totalUsdt0Withdrawn ?? totalWithdrawn);
+      setTotalWithdrawn(payload.totalUsdcWithdrawn ?? totalWithdrawn);
       setWithdrawResult(
-        `Sent ${payload.usdt0Sent} USDT0. Tx: ${payload.txHash}`
+        `Sent ${payload.usdcSent} USDC. Tx: ${payload.txHash}`
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Withdraw failed.";
@@ -360,17 +375,17 @@ export function WalletPage() {
                   <div>
                     <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.25em] text-emerald-200">
                       <Sparkles size={14} />
-                      Stable Rewards Vault
+                      Arc Rewards Vault
                     </div>
                     <p className="max-w-2xl text-sm text-slate-200 sm:text-base">
-                      Link your Stable Mainnet wallet, keep your EXP tied to your address, and convert your progress into USDT0 rewards.
+                      Link your Arc wallet, keep your EXP tied to your address, and convert your progress into USDC rewards.
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-right shadow-xl">
                     <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-400">
                       Conversion Rate
                     </p>
-                    <p className="mt-1 text-lg font-black text-amber-300">1000 EXP = 0.1 USDT0</p>
+                    <p className="mt-1 text-lg font-black text-amber-300">1000 EXP = 0.1 USDC</p>
                   </div>
                 </div>
               </div>
@@ -397,10 +412,10 @@ export function WalletPage() {
                     <ShieldCheck size={18} className="text-emerald-300" />
                   </div>
                   <p className="mt-3 text-lg font-black text-white">
-                    {isOnStable ? "Stable Mainnet" : "Network check needed"}
+                    {isOnArc ? "Arc" : "Network check needed"}
                   </p>
                   <p className="mt-2 text-sm text-slate-300">
-                    {isOnStable ? "USDT0 rewards are enabled." : "Switch to Stable Mainnet to use rewards."}
+                    {isOnArc ? "USDC rewards are enabled." : "Switch to Arc to use rewards."}
                   </p>
                 </div>
 
@@ -409,7 +424,7 @@ export function WalletPage() {
                     <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Rewards Bank</p>
                     <Coins size={18} className="text-sky-300" />
                   </div>
-                  <p className="mt-3 text-lg font-black text-white">{totalWithdrawn} USDT0</p>
+                  <p className="mt-3 text-lg font-black text-white">{totalWithdrawn} USDC</p>
                   <p className="mt-2 text-sm text-slate-300">Total rewards already claimed from your EXP.</p>
                 </div>
               </div>
@@ -419,10 +434,10 @@ export function WalletPage() {
               <button
                 className="rounded-xl bg-orange-500 px-6 py-3 font-bold text-slate-950 hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-70"
                 type="button"
-                onClick={connectStableWallet}
+                onClick={connectArcWallet}
                 disabled={isConnecting}
               >
-                {isConnecting ? "Connecting..." : "Connect Stable Wallet"}
+                {isConnecting ? "Connecting..." : "Connect Arc Wallet"}
               </button>
             )}
 
@@ -436,7 +451,7 @@ export function WalletPage() {
                   <div className="rounded-2xl border border-amber-300/15 bg-amber-400/10 px-3 py-2 text-right">
                     <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-200">Payout Ready</p>
                     <p className="mt-1 text-lg font-black text-amber-300">
-                      {(Math.floor(playerExp / 1000) * 0.1).toFixed(1)} USDT0
+                      {(Math.floor(playerExp / 1000) * 0.1).toFixed(1)} USDC
                     </p>
                   </div>
                 </div>
@@ -458,7 +473,7 @@ export function WalletPage() {
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Reward Formula</p>
                     <p className="mt-2 text-sm text-slate-200">
-                      Every 1000 EXP can be redeemed for <span className="font-black text-emerald-300">0.1 USDT0</span>.
+                      Every 1000 EXP can be redeemed for <span className="font-black text-emerald-300">0.1 USDC</span>.
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -475,7 +490,7 @@ export function WalletPage() {
               <div className="rounded-[28px] border border-white/10 bg-black/35 p-5 backdrop-blur-xl sm:p-6">
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-400">Withdraw Rewards</p>
                 <p className="mt-2 text-sm text-slate-200">
-                  Send your earned USDT0 directly to the connected wallet address.
+                  Send your earned USDC directly to the connected wallet address.
                 </p>
 
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -492,7 +507,7 @@ export function WalletPage() {
                   />
                   <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-200">Estimated payout</p>
-                    <p className="mt-2 text-3xl font-black text-emerald-300">{withdrawPreviewUsdt0} USDT0</p>
+                    <p className="mt-2 text-3xl font-black text-emerald-300">{withdrawPreviewUsdc} USDC</p>
                   </div>
                 </div>
 
