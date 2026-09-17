@@ -1,4 +1,3 @@
-import { MessageCircle, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { readJsonSafe } from "../utils/http";
@@ -13,6 +12,7 @@ type Eip1193Provider = {
 const ARC_CHAIN_ID_HEX = "0x13a2";
 const AUTH_TOKEN_KEY = "voxelverseAuthToken";
 const WALLET_ADDRESS_KEY = "voxelverseWalletAddress";
+const X_URL = "https://x.com/ArcRealms";
 
 const ARC_NETWORK_PARAMS = {
   chainId: ARC_CHAIN_ID_HEX,
@@ -201,18 +201,15 @@ export function TopNavbar({ floating = false }: { floating?: boolean }) {
 
           <div className="hidden items-center gap-4 md:flex">
             <a
-              href="#"
+              href={X_URL}
+              target="_blank"
+              rel="noreferrer"
               className="text-white/90 hover:text-white"
-              aria-label="Community"
+              aria-label="ArcRealms on X"
             >
-              <MessageCircle size={16} />
-            </a>
-            <a
-              href="#"
-              className="text-white/90 hover:text-white"
-              aria-label="Announcements"
-            >
-              <Send size={16} />
+              <span aria-hidden="true" className="text-lg font-bold leading-none">
+                𝕏
+              </span>
             </a>
             <button
               onClick={handleConnect}
@@ -252,6 +249,15 @@ export function TopNavbar({ floating = false }: { floating?: boolean }) {
             >
               Wallet
             </Link>
+            <a
+              href={X_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-lg px-2 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Follow us on X
+            </a>
             <button
               onClick={handleConnect}
               disabled={isConnecting}

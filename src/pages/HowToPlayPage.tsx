@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { MessageCircle, Send } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const X_URL = "https://x.com/ArcRealms";
 
 const GUIDE_SECTIONS = [
   { id: "start-here", label: "Start Here" },
@@ -50,18 +51,15 @@ export function HowToPlayPage() {
 
             <div className="hidden items-center gap-4 md:flex">
               <a
-                href="#"
+                href={X_URL}
+                target="_blank"
+                rel="noreferrer"
                 className="text-white/90 hover:text-white"
-                aria-label="Community"
+                aria-label="ArcRealms on X"
               >
-                <MessageCircle size={16} />
-              </a>
-              <a
-                href="#"
-                className="text-white/90 hover:text-white"
-                aria-label="Announcements"
-              >
-                <Send size={16} />
+                <span aria-hidden="true" className="text-lg font-bold leading-none">
+                  𝕏
+                </span>
               </a>
               <Link
                 to="/wallet"
@@ -97,6 +95,15 @@ export function HowToPlayPage() {
               >
                 Connect / Wallet
               </Link>
+              <a
+                href={X_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-lg px-2 py-2 text-sm font-semibold text-white/90 hover:bg-white/10"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Follow us on X
+              </a>
               <Link
                 to="/"
                 className="block rounded-xl border border-white/25 bg-white/10 px-6 py-3 text-center text-sm font-black text-white hover:bg-white/20"
